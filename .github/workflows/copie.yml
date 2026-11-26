@@ -4,7 +4,8 @@ on:
     - cron: "10 2 * * 1"
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
+  actions: write
   pages: write
   id-token: write
 concurrency:
@@ -31,15 +32,13 @@ jobs:
           (cd site && sha256sum amo.zip > amo.zip.sha256)
           echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $(cut -d' ' -f1 site/amo.zip.sha256) $size" > site/derniere-copie.txt
           touch site/.nojekyll
-      - name: Garder le depot actif (GitHub coupe les taches planifiees apres 60 jours sans activite)
-        run: |
-          cp site/derniere-copie.txt derniere-copie.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add derniere-copie.txt
-          git commit -m "copie du $(date -u +%Y-%m-%d)" || exit 0
-          git push origin HEAD
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
       - uses: actions/deploy-pages@v4
+      - name: Garder la tache planifiee active (GitHub la coupe apres 60 jours sans activite)
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/copie.yml/enable"
